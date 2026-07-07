@@ -1,6 +1,6 @@
 [package]
 name = "hsnphira-v2-pmp-plugin"
-version = "0.1.0"
+version = "0.1"
 edition = "2021"
 description = "HSNPhira v2 Frontend Web API plugin for Phira-mp+"
 
