@@ -47,6 +47,12 @@ cd HSNPhira-v2-PMP-plugin
 插件编译需要 `phira-plugin-sdk` 和 WIT 定义文件（来自 [Phira-mp-plus](https://github.com/HyperSynapseNetwork/Phira-mp-plus) 仓库）：
 
 ```bash
+# 方式一：从 PMP Release 下载（推荐）
+wget https://github.com/HyperSynapseNetwork/Phira-mp-plus/releases/latest/download/phira-plugin-sdk.tar.gz
+tar xzf phira-plugin-sdk.tar.gz
+# 解压后得到 phira-plugin-sdk/ 和 wit/
+
+# 方式二：从主仓库直接克隆
 git clone --depth 1 --filter=blob:none \
     https://github.com/HyperSynapseNetwork/Phira-mp-plus \
     /tmp/phira-mp-plus
