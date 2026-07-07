@@ -78,7 +78,7 @@ jobs:
             ${{ github.event.inputs.description }}
 
             ### WASM 下载
-            `plugin.wasm` — 复制到 `data/plugins/hsnphira-v2/plugin.wasm` 使用
+            `plugin.wasm` — 复制到 `plugins/hsnphira-v2-pmp-plugin.wasm` 使用
           files: |
             plugin/target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.component.wasm
           draft: false
