@@ -32,12 +32,18 @@ jobs:
         with:
           target: wasm32-unknown-unknown
 
+      - name: Install wasm-tools
+        run: cargo install wasm-tools
+
       - name: Build WASM plugin
         working-directory: plugin
-        run: cargo build --target wasm32-unknown-unknown --release
+        run: |
+          cargo build --target wasm32-unknown-unknown --release
+          wasm-tools component new ../target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.wasm \
+            -o ../target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.component.wasm
 
       - name: Upload WASM artifact
         uses: actions/upload-artifact@v4
         with:
           name: hsnphira-v2-pmp-plugin.wasm
-          path: plugin/target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.wasm
+          path: plugin/target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.component.wasm
