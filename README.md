@@ -63,6 +63,7 @@ ln -s /tmp/phira-mp-plus/wit ./wit
 ### 3. 编译
 
 ```bash
+rustup target add wasm32-unknown-unknown
 cargo build --target wasm32-unknown-unknown --release
 ```
 
