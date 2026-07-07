@@ -3,13 +3,6 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      bump:
-        description: 版本号升级
-        type: choice
-        options:
-          - minor  # B+1, C=0（默认）
-          - major  # A+1, B=0, C=0
-        default: "minor"
       description:
         description: 版本说明（可选）
         type: string
@@ -19,53 +12,24 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  bump-version:
+  release:
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      tag: ${{ steps.version.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: 计算版本号
+      - name: 获取最新版本标签
         id: version
         run: |
-          FULL_VERSION=$(grep '^version = ' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
-          MAJOR=$(echo "$FULL_VERSION" | cut -d. -f1)
-          MINOR=$(echo "$FULL_VERSION" | cut -d. -f2)
-
-          if [[ "${{ github.event.inputs.bump }}" == "major" ]]; then
-            MAJOR=$((MAJOR + 1))
-            MINOR=0
+          LATEST_TAG=$(git tag --list 'v*.*.*' --sort=-v:refname | head -1)
+          if [[ -z "$LATEST_TAG" ]]; then
+            echo "错误: 没有找到版本标签，请先运行 Bump Version workflow"
+            exit 1
           fi
-
-          TAG_PREFIX="v${MAJOR}.${MINOR}.0"
-          if git rev-parse "$TAG_PREFIX" >/dev/null 2>&1; then
-            PATCH=$(git rev-list --count "$TAG_PREFIX"..HEAD)
-          else
-            PATCH=$(git rev-list --count HEAD)
-          fi
-
-          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
-          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
-
-      - name: 提交版本标签
-        run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git tag -a "${{ steps.version.outputs.tag }}" -m "v${{ steps.version.outputs.version }}"
-          git push --follow-tags
-
-  build:
-    needs: bump-version
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "version=${LATEST_TAG#v}" >> $GITHUB_OUTPUT
 
       - name: 下载 SDK 依赖
         run: |
@@ -85,14 +49,11 @@ jobs:
       - name: 创建 Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.bump-version.outputs.tag }}
-          name: v${{ needs.bump-version.outputs.version }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: v${{ steps.version.outputs.version }}
           body: |
-            ## HSNPhira v2 PMP Plugin v${{ needs.bump-version.outputs.version }}
+            ## HSNPhira v2 PMP Plugin v${{ steps.version.outputs.version }}
 
-            ### 版本信息
-            - 版本号: ${{ needs.bump-version.outputs.version }}
-            - C (patch) = 自上一个 minor tag 以来的 commit 数
             ${{ github.event.inputs.description && '### 说明' || '' }}
             ${{ github.event.inputs.description }}
 
