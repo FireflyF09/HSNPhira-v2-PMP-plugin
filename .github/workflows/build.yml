@@ -10,6 +10,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout plugin repo
+        uses: actions/checkout@v4
+
       - name: Checkout Phira-mp+ (for phira-plugin-sdk dependency)
         uses: actions/checkout@v4
         with:
