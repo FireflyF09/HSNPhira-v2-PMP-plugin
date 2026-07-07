@@ -26,8 +26,11 @@ jobs:
 
       - name: Setup symlinks for dependencies
         run: |
+          # phira-plugin-sdk: plugin/../phira-plugin-sdk → phira-mp-plus/phira-plugin-sdk
           ln -s $PWD/phira-mp-plus/phira-plugin-sdk $PWD/phira-plugin-sdk
-          ln -s $PWD/phira-mp-plus/wit $PWD/wit
+          # WIT file: plugin/../../wit/ → parent of workspace root
+          # Because wit_bindgen! macro resolves ../../wit/ from Cargo.toml dir
+          ln -s $PWD/phira-mp-plus/wit $PWD/../wit
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
