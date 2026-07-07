@@ -13,19 +13,11 @@ jobs:
       - name: Checkout plugin repo
         uses: actions/checkout@v4
 
-      - name: Checkout Phira-mp+ (for phira-plugin-sdk dependency)
-        uses: actions/checkout@v4
-        with:
-          repository: HyperSynapseNetwork/Phira-mp-plus
-          path: phira-mp-plus
-          sparse-checkout: |
-            phira-plugin-sdk
-            wit
-
-      - name: Setup symlinks for dependencies
+      - name: Download SDK from PMP release
         run: |
-          ln -s $PWD/phira-mp-plus/phira-plugin-sdk $PWD/phira-plugin-sdk
-          ln -s $PWD/phira-mp-plus/wit $PWD/wit
+          wget -q https://github.com/HyperSynapseNetwork/Phira-mp-plus/releases/latest/download/phira-plugin-sdk.tar.gz
+          tar xzf phira-plugin-sdk.tar.gz
+          rm phira-plugin-sdk.tar.gz
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
