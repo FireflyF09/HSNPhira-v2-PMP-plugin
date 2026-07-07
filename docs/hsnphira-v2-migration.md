@@ -1,165 +1,184 @@
-# HSNPhira v2 前端 Web API 迁移文档
+# HSNPhira v2 数据迁移教程
 
-## 概述
+本文档参考 [HSNPhira/backend-extension](https://github.com/HyperSynapseNetwork/HSNPhira/tree/backend-extension) 和 [HSNPhira/backend-remake](https://github.com/HyperSynapseNetwork/HSNPhira/tree/backend-remake) 分支，说明如何将 HSNPhira 后端数据迁移到 Phira-mp+。
 
-本 WASM 插件替代了 Phira-mp+ 内置的 Web API 路由，提供与 HSNPhira v2 前端兼容的接口。
-它以 WIT/component-model 组件形式由 Phira-mp+ 在启动时加载。
+## 迁移来源
 
-## 路由变更
-
-### 已移除（内置路由，移至插件）
-
-| 旧路由 | 新路由（插件） | 方法 | 用途 |
-|--------|--------------|------|------|
-| `/api/rooms` | `/newapi/rooms/info` | GET | 房间列表 |
-| `/api/rooms/<name>` | `/newapi/rooms/list` | GET | 单个房间详情 |
-| — | `/newapi/rooms/history?room_id=X` | GET | 房间历史 |
-| — | `/newapi/rooms/listen` | SSE/WS | 房间事件 |
-| `/api/runtime` | — | — | 已移除（诊断） |
-| `/api/simulation` | — | — | 已移除（模拟器） |
-| `/api/simulation/world` | — | — | 已移除（模拟器） |
-| `/api/benchmark/reports` | — | — | 已移除（性能测试） |
-| `/api/benchmark/reports/history` | — | — | 已移除（性能测试） |
-| `/api/players/all` | — | — | 已移除（玩家） |
-| `/api/user_name/<id>` | — | — | 已移除（用户） |
-
-### 保留（web-monitor 兼容）
-
-| 路由 | 方法 | 用途 |
-|------|------|------|
-| `/api/events` | SSE | Runtime v2 事件流 |
-| `/api/ws` | WebSocket | 实时事件流 |
-
-### 新增（HSNPhira v2）
-
-| 路由 | 方法 | 响应类型 | 用途 |
+| 分支 | 语言 | 数据存储 | 说明 |
 |------|------|---------|------|
-| `/newapi/rooms/info` | GET | `Room[]` | 房间列表含在线人数 |
-| `/newapi/rooms/history?room_id=X` | GET | `GameHistory[]` | 房间游玩历史 |
-| `/api/rooms/info/:name` | GET | Room 详情 | 单个房间信息 |
-| `/chart/:id/rank` | GET | ChartRank | 谱面排行 |
-| `/topchart/chart_rank/:chart_id` | GET | ChartRankDetail | 谱面排名详情 |
-| `/topchart/hot_rank/:timeRange` | GET | ChartRank[] | 热门谱面排行 |
-| `/user_rank/:timeRange` | GET | UserRank[] | 用户排行 |
-| `/rankapi/playtime_leaderboard` | GET | 排行榜 | 在线时长排行 |
+| `backend-extension` | Python (Flask) | SQLite (`phira_stats.db`) | 排行/谱面/用户统计等扩展 API |
+| `backend-remake` | Python | SQLite/PostgreSQL | 完整后端（含 phira-mp 兼容层） |
 
-## 响应类型
+---
 
-### Room（匹配 HSNPhira v2 前端）
+## 1. 谱面排行数据迁移
 
-```typescript
-interface Room {
-  id: string
-  name: string
-  owner: string
-  owner_id: number
-  player_count: number
-  max_players: number
-  status: string
-  is_cycling: boolean
-  chart_id?: number
-  chart_name?: string
-  players: Player[]
-}
-```
+### 来源: `backend-extension/topchart.py`
 
-### GameHistory
+原后端使用 SQLite 存储谱面排行数据，通过定时任务从 Phira API 拉取。
 
-```typescript
-interface GameHistory {
-  chart_id: number
-  chart_name: string
-  play_time: string
-  players: PlayerScore[]
-}
+**迁移步骤:**
 
-interface PlayerScore {
-  user_id: number
-  username: string
-  phira_id: number
-  score: number
-  accuracy: number
-  perfect: number
-  good: number
-  bad: number
-  miss: number
-  max_combo: number
-}
-```
+1. 从旧服务器导出 SQLite 数据库：
+   ```bash
+   sqlite3 phira_stats.db .dump > phira_stats_dump.sql
+   ```
 
-### ChartRank
+2. 将谱面排行数据导入 Phira-mp+ 的 PostgreSQL：
+   ```bash
+   # 创建图表数据表
+   psql -d phira_mp -c "
+   CREATE TABLE IF NOT EXISTS chart_ranks (
+       chart_id INTEGER PRIMARY KEY,
+       chart_name TEXT,
+       play_count INTEGER DEFAULT 0,
+       difficulty REAL DEFAULT 0,
+       last_updated TIMESTAMP DEFAULT NOW()
+   );"
+   
+   # 导入数据
+   sqlite3 phira_stats.db "SELECT * FROM chart_ranks;" | \
+   while IFS='|' read id name count diff; do
+       psql -d phira_mp -c "INSERT INTO chart_ranks VALUES ($id, '$name', $count, $diff, NOW()) ON CONFLICT (chart_id) DO UPDATE SET play_count = $count, last_updated = NOW();"
+   done
+   ```
 
-```typescript
-interface ChartRank {
-  rank: number
-  chart_id: number
-  chart_name: string
-  play_count: number
-  increase: number
-}
-```
+3. Phira-mp+ 内置的 `chart.rank` / `chart.hot_rank` 查询会自动读取此表。
 
-### UserRank
+### API 端点对照
 
-```typescript
-interface UserRank {
-  rank: number
-  user_id: number
-  username: string
-  phira_id: number
-  play_time: number
-}
-```
+| 原 `backend-extension` | Phira-mp+ 插件 |
+|------------------------|---------------|
+| `GET /topchart/hot_rank/<timeRange>` | `/topchart/hot_rank/:timeRange` |
+| `GET /topchart/chart_rank/<chart_id>` | `/topchart/chart_rank/:chart_id` |
 
-## 构建与部署
+---
 
-### 前置条件
-- Rust 工具链，添加 `wasm32-unknown-unknown` 目标：`rustup target add wasm32-unknown-unknown`
+## 2. 用户排行数据迁移
 
-### 构建
+### 来源: `backend-extension/rank.py`
+
+原后端从 SQLite 读取 `user_playtime` 表生成游玩时间排行。
+
+**迁移步骤:**
+
+1. 导出用户游玩时间数据：
+   ```bash
+   sqlite3 phira_stats.db "SELECT user_id, SUM(play_duration) as total_playtime FROM user_playtime GROUP BY user_id ORDER BY total_playtime DESC;" > playtime_export.csv
+   ```
+
+2. 导入到 Phira-mp+：
+   ```bash
+   psql -d phira_mp -c "
+   CREATE TABLE IF NOT EXISTS user_playtime (
+       user_id INTEGER PRIMARY KEY,
+       total_playtime BIGINT DEFAULT 0,
+       last_updated TIMESTAMP DEFAULT NOW()
+   );"
+   
+   cat playtime_export.csv | while IFS='|' read uid playtime; do
+       psql -d phira_mp -c "INSERT INTO user_playtime VALUES ($uid, $playtime, NOW()) ON CONFLICT (user_id) DO UPDATE SET total_playtime = $playtime, last_updated = NOW();"
+   done
+   ```
+
+### API 端点对照
+
+| 原 `backend-extension` | Phira-mp+ 插件 |
+|------------------------|---------------|
+| `GET /user_rank/<timeRange>` | `/user_rank/:timeRange` |
+| `GET /rankapi/playtime_leaderboard` | `/rankapi/playtime_leaderboard` |
+
+---
+
+## 3. 用户信息数据迁移
+
+### 来源: `backend-extension/user.py`
+
+原后端使用 SQLite 存储用户 Phira ID 映射和房间活动记录。
+
+**迁移步骤:**
+
 ```bash
-cd .hsnphira-pmp-plugin
-cargo build --target wasm32-unknown-unknown --release
+sqlite3 phira_stats.db "SELECT * FROM users;" 2>/dev/null | \
+while IFS='|' read uid name phira_id; do
+    psql -d phira_mp -c "
+    INSERT INTO mp_users (user_id, username, phira_id) 
+    VALUES ($uid, '$name', $phira_id)
+    ON CONFLICT (user_id) DO NOTHING;"
+done
 ```
 
-### 部署
-将编译后的 `.wasm` 文件复制到 Phira-mp+ 的插件目录：
+---
+
+## 4. 房间历史数据迁移
+
+### 来源: `backend-remake` 的 phira-mp 模块
+
+`backend-remake` 分支包含完整的 phira-mp 服务端，其房间数据存储在 SQLite/PostgreSQL 中。
+
+**迁移步骤:**
+
+1. 从旧 phira-mp 数据库导出房间记录：
+   ```bash
+   sqlite3 phira_mp.db "SELECT * FROM round_results;" > round_results.csv
+   ```
+
+2. 导入到 Phira-mp+ RoundStore：
+   ```bash
+   # Phira-mp+ 的 round_store 数据存储在 data/rounds/ 目录
+   # 将 CSV 转换为 Phira-mp+ 可识别的格式
+   python3 << 'EOF'
+   import json, csv
+   with open('round_results.csv') as f:
+       reader = csv.reader(f)
+       for row in reader:
+           record = {
+               "chart_id": int(row[0]),
+               "player_id": int(row[1]),
+               "score": int(row[2]),
+               "accuracy": float(row[3]),
+               "perfect": int(row[4]),
+               "good": int(row[5]),
+               "bad": int(row[6]),
+               "miss": int(row[7]),
+               "max_combo": int(row[8])
+           }
+           print(json.dumps(record))
+   EOF
+   ```
+
+---
+
+## 5. 从 `backend-remake` 迁移完整服务
+
+`backend-remake` 分支包含以下组件，每个都有对应的 Phira-mp+ 实现：
+
+| backend-remake 组件 | Phira-mp+ 替代 |
+|---------------------|---------------|
+| `phira/` (Phira API 代理) | `phira_client.rs` + `PhiraRetryClient` |
+| `phira-mp/` (游戏服务端) | `phira-mp-plus-server` |
+| `phira-web-monitor/` (Web 监控) | `/api/events` SSE + `/api/ws` WebSocket |
+| `phira-mp-logprocessor/` (日志处理) | 内置 telemetry/auto-cleanup |
+
+---
+
+## 验证
+
+迁移完成后，通过前端验证：
+
 ```bash
-cp target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.wasm \
-   ../data/plugins/hsnphira-v2/plugin.wasm
-```
+# 测试房间列表
+curl http://localhost:12347/newapi/rooms/info
 
-创建 manifest 文件：
-```bash
-cat > ../data/plugins/hsnphira-v2/plugin.json << 'EOF'
-{
-  "capabilities": ["state.read", "admin", "room.manage"]
-}
-EOF
-```
+# 测试游玩排行
+curl http://localhost:12347/rankapi/playtime_leaderboard
 
-### 验证
-1. 启动 Phira-mp+ 服务器
-2. 在 CLI 中检查插件已加载：`plugin list`
-3. 测试端点：`curl http://localhost:12347/newapi/rooms/info`
-
-## 架构
-
-```
-HSNPhira v2 前端 ←→ Phira-mp+ HTTP 服务器 (:12347)
-                        │
-              ┌─────────┴──────────┐
-              │     动态路由        │
-              └─────────┬──────────┘
-                        │
-           ┌────────────┼────────────┐
-           │            │            │
-     /api/events   /newapi/*     /chart/*
-     /api/ws        (插件)       (插件)
-      (内置)
+# 测试谱面排行
+curl http://localhost:12347/topchart/hot_rank/all
 ```
 
 ## 参考
 
-- HSNPhira 后端拓展分支：https://github.com/HyperSynapseNetwork/HSNPhira
-- Phira-mp+ WIT 插件 SDK：`phira-plugin-sdk/`
+- [HSNPhira backend-extension 分支](https://github.com/HyperSynapseNetwork/HSNPhira/tree/backend-extension)
+- [HSNPhira backend-remake 分支](https://github.com/HyperSynapseNetwork/HSNPhira/tree/backend-remake)
+- [Phira-mp+ WIT 插件 SDK](../../phira-plugin-sdk/)
