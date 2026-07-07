@@ -1,0 +1,45 @@
+name: Build WASM Plugin
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout plugin repo
+        uses: actions/checkout@v4
+        with:
+          path: plugin
+
+      - name: Checkout Phira-mp+ (for phira-plugin-sdk dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: HyperSynapseNetwork/Phira-mp-plus
+          path: phira-mp-plus
+          sparse-checkout: |
+            phira-plugin-sdk
+            wit
+
+      - name: Setup symlinks for dependencies
+        run: |
+          ln -s $PWD/phira-mp-plus/phira-plugin-sdk $PWD/phira-plugin-sdk
+          ln -s $PWD/phira-mp-plus/wit $PWD/wit
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: wasm32-unknown-unknown
+
+      - name: Build WASM plugin
+        working-directory: plugin
+        run: cargo build --target wasm32-unknown-unknown --release
+
+      - name: Upload WASM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hsnphira-v2-pmp-plugin.wasm
+          path: plugin/target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.wasm
