@@ -100,7 +100,7 @@ rm -f target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.wasm
 ### 1. 创建插件目录
 
 ```bash
-mkdir -p /path/to/phira-mp-plus/data/plugins/hsnphira-v2
+mkdir -p /path/to/phira-mp-plus/plugins/hsnphira-v2
 ```
 
 ### 2. 复制 WASM
@@ -108,24 +108,14 @@ mkdir -p /path/to/phira-mp-plus/data/plugins/hsnphira-v2
 ```bash
 # 本地构建
 cp target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.wasm \
-   /path/to/phira-mp-plus/data/plugins/hsnphira-v2/plugin.wasm
+   /path/to/phira-mp-plus/plugins/hsnphira-v2/plugin.wasm
 
 # 或从 Actions 下载
 cp ~/Downloads/hsnphira-v2-pmp-plugin.wasm \
-   /path/to/phira-mp-plus/data/plugins/hsnphira-v2/plugin.wasm
+   /path/to/phira-mp-plus/plugins/hsnphira-v2/plugin.wasm
 ```
 
-### 3. 创建 manifest
-
-`/path/to/phira-mp-plus/data/plugins/hsnphira-v2/plugin.json`：
-
-```json
-{
-  "capabilities": ["state.read", "admin", "room.manage"]
-}
-```
-
-### 4. 验证
+### 3. 验证
 
 ```bash
 # CLI 验证
