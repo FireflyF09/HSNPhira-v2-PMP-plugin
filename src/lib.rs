@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables)]
 //! HSNPhira v2 Frontend Web API Plugin for Phira-mp+
 //!
 //! WIT/component-model plugin. Registers HTTP routes via host API and handles
@@ -61,7 +62,7 @@ impl Guest for HSNPhiraPlugin {
         Ok(false)
     }
 
-    fn on_api(method: String, args: Vec<JsonValue>) -> ApiResult {
+    fn on_api(method: String, _args: Vec<JsonValue>) -> ApiResult {
         let result = match method.as_str() {
             "/newapi/rooms/info" => json!({"rooms": [], "player_count": 0}),
             "/newapi/rooms/history" => json!([]),
