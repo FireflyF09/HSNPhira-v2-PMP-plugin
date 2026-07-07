@@ -10,11 +10,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout plugin repo
-        uses: actions/checkout@v4
-        with:
-          path: plugin
-
       - name: Checkout Phira-mp+ (for phira-plugin-sdk dependency)
         uses: actions/checkout@v4
         with:
@@ -26,10 +21,8 @@ jobs:
 
       - name: Setup symlinks for dependencies
         run: |
-          # phira-plugin-sdk: plugin/../phira-plugin-sdk → phira-mp-plus/phira-plugin-sdk
-          ln -s $PWD/phira-mp-plus/phira-plugin-sdk $PWD/phira-plugin-sdk
-          # WIT file: plugin/../wit/ → phira-mp-plus/wit (wit_bindgen! macro resolves ../wit/)
-          ln -s $PWD/phira-mp-plus/wit $PWD/wit
+          ln -s $PWD/phira-mp-plus/phira-plugin-sdk $PWD/plugin/phira-plugin-sdk
+          ln -s $PWD/phira-mp-plus/wit $PWD/plugin/wit
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1

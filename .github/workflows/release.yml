@@ -55,9 +55,10 @@ jobs:
           target: wasm32-unknown-unknown
 
       - name: 构建 WASM 插件
+        working-directory: plugin
         run: |
           cargo build --target wasm32-unknown-unknown --release
-          echo "构建完成: $(ls -lh target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.wasm | awk '{print $5}')"
+          echo "构建完成: $(ls -lh ../target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.wasm | awk '{print $5}')"
 
       - name: 创建 Release
         uses: softprops/action-gh-release@v2
@@ -73,6 +74,6 @@ jobs:
             ### WASM 下载
             `plugin.wasm` — 复制到 `data/plugins/hsnphira-v2/plugin.wasm` 使用
           files: |
-            target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.wasm
+            plugin/target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.wasm
           draft: false
           prerelease: false
