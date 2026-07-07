@@ -28,7 +28,7 @@ fn register_route(path: &str) {
 }
 
 impl Guest for HSNPhiraPlugin {
-    fn init(&self) -> Result<(), String> {
+    fn init() -> Result<(), String> {
         for path in &[
             "/newapi/rooms/info",
             "/newapi/rooms/history",
@@ -46,7 +46,7 @@ impl Guest for HSNPhiraPlugin {
         Ok(())
     }
 
-    fn get_info(&self) -> PluginInfo {
+    fn get_info() -> PluginInfo {
         PluginInfo {
             name: "hsnphira-v2-pmp-plugin".to_string(),
             version: "0.1.0".to_string(),
@@ -55,14 +55,13 @@ impl Guest for HSNPhiraPlugin {
         }
     }
 
-    fn cleanup(&self) {}
+    fn cleanup() {}
 
-    fn on_event(&self, _event: PluginEvent) -> Result<bool, String> {
+    fn on_event(_event: PluginEvent) -> Result<bool, String> {
         Ok(false)
     }
 
-    fn on_api(&self, method: String, args: Vec<JsonValue>) -> ApiResult {
-        let serde_args: Vec<Value> = args.iter().map(wit_json_to_serde).collect();
+    fn on_api(method: String, args: Vec<JsonValue>) -> ApiResult {
         let result = match method.as_str() {
             "/newapi/rooms/info" => json!({"rooms": [], "player_count": 0}),
             "/newapi/rooms/history" => json!([]),
