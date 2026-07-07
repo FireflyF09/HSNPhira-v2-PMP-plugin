@@ -24,8 +24,8 @@ jobs:
 
       - name: Setup symlinks for dependencies
         run: |
-          ln -s $PWD/phira-mp-plus/phira-plugin-sdk $PWD/plugin/phira-plugin-sdk
-          ln -s $PWD/phira-mp-plus/wit $PWD/plugin/wit
+          ln -s $PWD/phira-mp-plus/phira-plugin-sdk $PWD/phira-plugin-sdk
+          ln -s $PWD/phira-mp-plus/wit $PWD/wit
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
