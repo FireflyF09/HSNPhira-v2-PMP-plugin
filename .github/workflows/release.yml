@@ -20,7 +20,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 获取最新版本标签
+      - name: 获取最新版本标签并计算版本号
         id: version
         run: |
           LATEST_TAG=$(git tag --list 'v*.*.*' --sort=-v:refname | head -1)
@@ -28,8 +28,21 @@ jobs:
             echo "错误: 没有找到版本标签，请先运行 Bump Version workflow"
             exit 1
           fi
-          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
-          echo "version=${LATEST_TAG#v}" >> $GITHUB_OUTPUT
+          RAW_VERSION="${LATEST_TAG#v}"
+          MAJOR=$(echo "$RAW_VERSION" | cut -d. -f1)
+          MINOR=$(echo "$RAW_VERSION" | cut -d. -f2)
+
+          # C = 自 v{A}.{B}.0 以来的 commit 数
+          BASE_TAG="v${MAJOR}.${MINOR}.0"
+          if git rev-parse "$BASE_TAG" >/dev/null 2>&1; then
+            PATCH=$(git rev-list --count "$BASE_TAG"..HEAD)
+          else
+            PATCH=$(git rev-list --count HEAD)
+          fi
+
+          FULL_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "tag=v$FULL_VERSION" >> $GITHUB_OUTPUT
+          echo "version=$FULL_VERSION" >> $GITHUB_OUTPUT
 
       - name: 下载 SDK 依赖
         run: |
