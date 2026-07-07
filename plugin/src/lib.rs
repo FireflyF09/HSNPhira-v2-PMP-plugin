@@ -8,6 +8,9 @@
 
 phira_plugin_sdk::wit_bindgen!("phira-plugin-v2");
 
+// Export the Guest implementation as WASM exports (required by wit-bindgen 0.58)
+export!(HSNPhiraPlugin);
+
 use serde_json::{json, Value};
 
 // In wit-bindgen 0.58, the generated import module is at this path.

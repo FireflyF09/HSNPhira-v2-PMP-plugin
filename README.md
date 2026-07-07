@@ -60,33 +60,22 @@ ln -s /tmp/phira-mp-plus/phira-plugin-sdk ./phira-plugin-sdk
 ln -s /tmp/phira-mp-plus/wit ./wit
 ```
 
-### 3. 安装 wasm-tools
-
-```bash
-cargo install wasm-tools
-```
-
-### 4. 编译
+### 3. 编译
 
 ```bash
 rustup target add wasm32-unknown-unknown
 cargo build --target wasm32-unknown-unknown --release
-
-# 将核心模块打包为 WIT 组件（服务器要求组件格式）
-wasm-tools component new \
-  target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.wasm \
-  -o target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.component.wasm
 ```
 
-产物：`target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.component.wasm`
+产物：`target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.wasm`
 
-### 5. 查看编译产物
+### 4. 查看编译产物
 
 ```bash
-ls -lh target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.component.wasm
+ls -lh target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.wasm
 ```
 
-### 6. 清理构建
+### 5. 清理构建
 
 ```bash
 cargo clean
@@ -114,7 +103,7 @@ mkdir -p /path/to/phira-mp-plus/plugins/hsnphira-v2
 
 ```bash
 # 本地构建
-cp target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.component.wasm \
+cp target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.wasm \
    /path/to/phira-mp-plus/plugins/hsnphira-v2/plugin.wasm
 
 # 或从 Actions 下载
