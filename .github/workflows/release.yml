@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 版本号升级
+        type: choice
+        options:
+          - minor  # B+1, C=0（默认）
+          - major  # A+1, B=0, C=0
+        default: "minor"
+      description:
+        description: 版本说明（可选）
+        type: string
+        default: ""
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 计算版本号
+        id: version
+        run: |
+          FULL_VERSION=$(grep '^version = ' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+          MAJOR=$(echo "$FULL_VERSION" | cut -d. -f1)
+          MINOR=$(echo "$FULL_VERSION" | cut -d. -f2)
+
+          if [[ "${{ github.event.inputs.bump }}" == "major" ]]; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+          fi
+
+          TAG_PREFIX="v${MAJOR}.${MINOR}.0"
+          if git rev-parse "$TAG_PREFIX" >/dev/null 2>&1; then
+            PATCH=$(git rev-list --count "$TAG_PREFIX"..HEAD)
+          else
+            PATCH=$(git rev-list --count HEAD)
+          fi
+
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: 提交版本标签
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git tag -a "${{ steps.version.outputs.tag }}" -m "v${{ steps.version.outputs.version }}"
+          git push --follow-tags
+
+  build:
+    needs: bump-version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 下载 SDK 依赖
+        run: |
+          wget https://github.com/HyperSynapseNetwork/Phira-mp-plus/releases/latest/download/phira-plugin-sdk.tar.gz
+          tar xzf phira-plugin-sdk.tar.gz
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: wasm32-unknown-unknown
+
+      - name: 构建 WASM 插件
+        run: |
+          cargo build --target wasm32-unknown-unknown --release
+          echo "构建完成: $(ls -lh target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.wasm | awk '{print $5}')"
+
+      - name: 创建 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.bump-version.outputs.tag }}
+          name: v${{ needs.bump-version.outputs.version }}
+          body: |
+            ## HSNPhira v2 PMP Plugin v${{ needs.bump-version.outputs.version }}
+
+            ### 版本信息
+            - 版本号: ${{ needs.bump-version.outputs.version }}
+            - C (patch) = 自上一个 minor tag 以来的 commit 数
+            ${{ github.event.inputs.description && '### 说明' || '' }}
+            ${{ github.event.inputs.description }}
+
+            ### WASM 下载
+            `plugin.wasm` — 复制到 `data/plugins/hsnphira-v2/plugin.wasm` 使用
+          files: |
+            target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.wasm
+          draft: false
+          prerelease: false
