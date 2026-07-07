@@ -160,13 +160,14 @@ journalctl -u phira-mp-plus -f | grep plugin
 ### WIT 文件找不到
 
 ```
-failed to read path for WIT ../../wit/phira-plugin.wit
+failed to read path for WIT ../wit/phira-plugin.wit
 ```
 
-解决：确认 `wit` 软链接存在：
+解决：确认 `wit/` 目录存在于项目根目录：
 
 ```bash
-ls -la wit   # 应指向 Phira-mp-plus/wit
+ls wit/phira-plugin.wit
+# 或从 PMP Release 下载 SDK tarball（内含 wit/）
 ```
 
 ### wit-bindgen 未安装
