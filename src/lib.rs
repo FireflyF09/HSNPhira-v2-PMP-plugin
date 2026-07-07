@@ -15,7 +15,7 @@ struct HSNPhiraPlugin;
 /// Call host API and return JSON result.
 fn host_api(method: &str, args: &[Value]) -> Result<Value, String> {
     let wit_args: Vec<JsonValue> = args.iter().map(json_value_to_wit).collect();
-    match host::api_call(method, &wit_args) {
+    match phira_host::api_call(method, &wit_args) {
         ApiResult::Ok(value) => Ok(wit_json_to_serde(&value)),
         ApiResult::Error(e) => Err(e),
     }
@@ -26,7 +26,7 @@ fn register_route(path: &str) {
     let _ = host_api("http.register_route", &[json!({"path": path})]);
 }
 
-impl PhiraPluginV2 for HSNPhiraPlugin {
+impl Guest for HSNPhiraPlugin {
     fn init(&mut self) -> Result<(), String> {
         // 房间 API
         register_route("/newapi/rooms/info");
