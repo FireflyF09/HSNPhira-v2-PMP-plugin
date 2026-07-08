@@ -11,50 +11,7 @@
 
 ---
 
-## 1. 谱面排行数据迁移
-
-### 来源: `backend-extension/topchart.py`
-
-原后端使用 SQLite 存储谱面排行数据，通过定时任务从 Phira API 拉取。
-
-**迁移步骤:**
-
-1. 从旧服务器导出 SQLite 数据库：
-   ```bash
-   sqlite3 phira_stats.db .dump > phira_stats_dump.sql
-   ```
-
-2. 将谱面排行数据导入 Phira-mp+ 的 PostgreSQL：
-   ```bash
-   # 创建图表数据表
-   psql -d phira_mp -c "
-   CREATE TABLE IF NOT EXISTS chart_ranks (
-       chart_id INTEGER PRIMARY KEY,
-       chart_name TEXT,
-       play_count INTEGER DEFAULT 0,
-       difficulty REAL DEFAULT 0,
-       last_updated TIMESTAMP DEFAULT NOW()
-   );"
-   
-   # 导入数据
-   sqlite3 phira_stats.db "SELECT * FROM chart_ranks;" | \
-   while IFS='|' read id name count diff; do
-       psql -d phira_mp -c "INSERT INTO chart_ranks VALUES ($id, '$name', $count, $diff, NOW()) ON CONFLICT (chart_id) DO UPDATE SET play_count = $count, last_updated = NOW();"
-   done
-   ```
-
-3. Phira-mp+ 内置的 `chart.rank` / `chart.hot_rank` 查询会自动读取此表。
-
-### API 端点对照
-
-| 原 `backend-extension` | Phira-mp+ 插件 |
-|------------------------|---------------|
-| `GET /topchart/hot_rank/<timeRange>` | `/topchart/hot_rank/:timeRange` |
-| `GET /topchart/chart_rank/<chart_id>` | `/topchart/chart_rank/:chart_id` |
-
----
-
-## 2. 用户排行数据迁移
+## 1. 用户排行数据迁移
 
 ### 来源: `backend-extension/rank.py`
 
@@ -81,16 +38,9 @@
    done
    ```
 
-### API 端点对照
-
-| 原 `backend-extension` | Phira-mp+ 插件 |
-|------------------------|---------------|
-| `GET /user_rank/<timeRange>` | `/user_rank/:timeRange` |
-| `GET /rankapi/playtime_leaderboard` | `/rankapi/playtime_leaderboard` |
-
 ---
 
-## 3. 用户信息数据迁移
+## 2. 用户信息数据迁移
 
 ### 来源: `backend-extension/user.py`
 
@@ -110,7 +60,7 @@ done
 
 ---
 
-## 4. 房间历史数据迁移
+## 3. 房间历史数据迁移
 
 ### 来源: `backend-remake` 的 phira-mp 模块
 
@@ -149,7 +99,7 @@ done
 
 ---
 
-## 5. 从 `backend-remake` 迁移完整服务
+## 4. 从 `backend-remake` 迁移完整服务
 
 `backend-remake` 分支包含以下组件，每个都有对应的 Phira-mp+ 实现：
 
@@ -161,21 +111,6 @@ done
 | `phira-mp-logprocessor/` (日志处理) | 内置 telemetry/auto-cleanup |
 
 ---
-
-## 验证
-
-迁移完成后，通过前端验证：
-
-```bash
-# 测试房间列表
-curl http://localhost:12347/newapi/rooms/info
-
-# 测试游玩排行
-curl http://localhost:12347/rankapi/playtime_leaderboard
-
-# 测试谱面排行
-curl http://localhost:12347/topchart/hot_rank/all
-```
 
 ## 参考
 
