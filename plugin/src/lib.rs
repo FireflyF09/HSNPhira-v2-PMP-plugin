@@ -23,7 +23,7 @@ fn host_api(method: &str, args: &[Value]) -> Result<Value, String> {
 }
 
 fn register_route(path: &str) {
-    let _ = host_api("http.register_route", &[json!({"path": path, "plugin": "hsnphira-v2"})]);
+    let _ = host_api("http.register_route", &[json!({"path": path, "plugin": "hsnphira-v2-pmp-plugin"})]);
 }
 
 impl Guest for HSNPhiraPlugin {
