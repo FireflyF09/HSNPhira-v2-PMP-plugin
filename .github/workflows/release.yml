@@ -62,9 +62,9 @@ jobs:
         run: |
           cargo build --target wasm32-unknown-unknown --release
           wasm-tools component new \
-            ../target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.wasm \
-            -o ../target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.component.wasm
-          echo "构建完成: $(ls -lh ../target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.component.wasm | awk '{print $5}')"
+            target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.wasm \
+            -o target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.component.wasm
+          echo "构建完成: $(ls -lh target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.component.wasm | awk '{print $5}')"
 
       - name: 创建 Release
         uses: softprops/action-gh-release@v2
@@ -81,5 +81,6 @@ jobs:
             `plugin.wasm` — 复制到 `plugins/hsnphira-v2-pmp-plugin.wasm` 使用
           files: |
             plugin/target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.component.wasm
+            target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.component.wasm
           draft: false
           prerelease: false
