@@ -222,7 +222,7 @@ impl Guest for HSNPhiraPlugin {
                         "room": raw_data.get("room_id"),
                         "chart_id": raw_data.get("chart_id"),
                     })),
-                    _ => json!(null), // skip unknown → host skips sending
+                    _ => ("", json!(null)), // skip unknown → host skips sending
                 };
                 let mut payload = json!({"type": hsn_type});
                 if let Some(obj) = hsn_data.as_object() {
