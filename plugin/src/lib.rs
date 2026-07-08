@@ -3,6 +3,10 @@
 //! WIT/component-model plugin. Registers HTTP routes via host API and handles
 //! requests via the `on_api` export.
 //!
+//! Room/player data is fetched from the host via `phira_host::api_call`.
+//! Chart/ranking data that is not available in Phira-mp+ returns stubs —
+//! the host persistence layer does not yet expose playtime / chart rank queries.
+//!
 //! Build: cargo build --target wasm32-unknown-unknown --release
 //! Then:  wasm-tools component new <file>.wasm -o <file>.component.wasm
 
@@ -14,6 +18,7 @@ use crate::phira::plugin::phira_host;
 
 struct HSNPhiraPlugin;
 
+/// Call the host's generic API query (server_state_query dispatch).
 fn host_api(method: &str, args: &[Value]) -> Result<Value, String> {
     let wit_args: Vec<JsonValue> = args.iter().map(json_value_to_wit).collect();
     match phira_host::api_call(method, &wit_args) {
@@ -22,16 +27,27 @@ fn host_api(method: &str, args: &[Value]) -> Result<Value, String> {
     }
 }
 
+/// Send an outbound HTTP request via the host sandbox.
+fn http_get(url: &str) -> Result<Value, String> {
+    let resp = phira_host::http_request(url, "GET", &[], &[])
+        .map_err(|e| format!("HTTP request failed: {e}"))?;
+    let body_str = String::from_utf8(resp.body).map_err(|e| format!("UTF-8 decode: {e}"))?;
+    serde_json::from_str(&body_str).map_err(|e| format!("JSON parse: {e}"))
+}
+
 fn register_route(path: &str) {
     let _ = host_api("http.register_route", &[json!({"path": path, "plugin": "hsnphira-v2-pmp-plugin"})]);
 }
+
+/// Default Phira API URL.  The HSNPhira backend-extension exposes chart
+/// ranking and playtime endpoints at this base URL.
+const PHIRA_API_BASE: &str = "https://phira.5wyxi.com";
 
 impl Guest for HSNPhiraPlugin {
     fn init() -> Result<(), String> {
         for path in &[
             "/newapi/rooms/info",
-            "/newapi/rooms/history",
-            "/newapi/rooms/listen",
+            "/newapi/rooms/history/:room_id",
             "/api/rooms/info/:name",
             "/chart/:id/rank",
             "/topchart/chart_rank/:chart_id",
@@ -42,6 +58,15 @@ impl Guest for HSNPhiraPlugin {
         ] {
             register_route(path);
         }
+        // Register SSE stream for /newapi/rooms/listen.
+        // The host manages the SSE connection and calls back into
+        // on_api("sse:translate", &[{"event_type": …, "data": …}]) for each event.
+        let _ = host_api("sse.register_stream", &[json!({
+            "path": "/newapi/rooms/listen",
+            "plugin": "hsnphira-v2-pmp-plugin",
+            "event_types": ["RoomCreate", "RoomJoin", "RoomLeave",
+                "RoomModify", "GameEnd", "RoundComplete"],
+        })]);
         Ok(())
     }
 
@@ -61,22 +86,160 @@ impl Guest for HSNPhiraPlugin {
     }
 
     fn on_api(method: String, args: Vec<JsonValue>) -> ApiResult {
-        let serde_args: Vec<Value> = args.iter().map(wit_json_to_serde).collect();
+        let __serde_args: Vec<Value> = args.iter().map(wit_json_to_serde).collect();
         let result = match method.as_str() {
-            "/newapi/rooms/info" => json!({"rooms": [], "player_count": 0}),
-            "/newapi/rooms/history" => json!([]),
-            "/api/rooms/info/:name" => json!({"error": "not_found"}),
-            "/chart/:id/rank" => json!({"ranks": []}),
-            "/topchart/chart_rank/:chart_id" => json!({"ranks": []}),
-            "/topchart/hot_rank/:timeRange" => json!({"charts": []}),
-            "/user_rank/:timeRange" => json!({"users": []}),
-            "/rankapi/playtime_leaderboard" => json!({"leaderboard": []}),
-            "/config/version.json" => json!({"version": "0.1.0"}),
+            // ── Room endpoints ──────────────────────────────────────
+            "/newapi/rooms/info" => {
+                match host_api("rooms.list", &[]) {
+                    Ok(rooms) => {
+                        let rooms_arr = rooms.as_array().cloned().unwrap_or_default();
+                        let player_count: usize = rooms_arr.iter()
+                            .filter_map(|r| r.get("player_count").and_then(|v| v.as_u64()))
+                            .sum::<u64>() as usize;
+                        json!({
+                            "rooms": rooms_arr,
+                            "player_count": player_count,
+                        })
+                    }
+                    Err(e) => json!({"error": e, "rooms": [], "player_count": 0}),
+                }
+            }
+            "/newapi/rooms/history/:room_id" => {
+                let room_id = _serde_args.get(0).and_then(|v| v.as_str()).unwrap_or("");
+                if room_id.is_empty() {
+                    json!({"error": "missing room_id"})
+                } else {
+                    match host_api("room.history", &[json!(room_id)]) {
+                        Ok(data) => data,
+                        Err(e) => json!({"error": e, "rounds": []}),
+                    }
+                }
+            }
+            "/newapi/rooms/listen" => {
+                // SSE listener — the HSNPhira frontend opens this as an
+                // EventSource.  For now return a placeholder so the
+                // frontend recognises the endpoint exists.
+                json!({"status": "listening", "info": "SSE via /api/events"})
+            }
+            "/api/rooms/info/:name" => {
+                let name = _serde_args.get(0).and_then(|v| v.as_str()).unwrap_or("");
+                if name.is_empty() {
+                    json!({"error": "missing room name"})
+                } else {
+                    match host_api("rooms.by_name", &[json!(name)]) {
+                        Ok(data) => data,
+                        Err(_) => json!({"error": "not_found"}),
+                    }
+                }
+            }
+
+            // ── Chart / Leaderboard endpoints ───────────────────────
+            // These require data from the HSNPhira backend-extension
+            // (playtime, chart ranks).  The host persistence layer does
+            // not yet expose these queries, so we attempt to proxy
+            // through to the Phira API.  When the host gains a
+            // playtime / chart-rank query path, replace the HTTP fetch
+            // with `host_api("…", …)`.
+            "/chart/:id/rank" => {
+                let chart_id = _serde_args.get(0).and_then(|v| v.as_str()).unwrap_or("");
+                if chart_id.is_empty() {
+                    json!({"ranks": []})
+                } else {
+                    let url = format!("{PHIRA_API_BASE}/api/chart/{chart_id}/rank");
+                    http_get(&url).unwrap_or(json!({"ranks": []}))
+                }
+            }
+            "/topchart/chart_rank/:chart_id" => {
+                let chart_id = _serde_args.get(0).and_then(|v| v.as_str()).unwrap_or("");
+                if chart_id.is_empty() {
+                    json!({"ranks": []})
+                } else {
+                    let url = format!("{PHIRA_API_BASE}/api/topchart/chart_rank/{chart_id}");
+                    http_get(&url).unwrap_or(json!({"ranks": []}))
+                }
+            }
+            "/topchart/hot_rank/:timeRange" => {
+                let range = _serde_args.get(0).and_then(|v| v.as_str()).unwrap_or("all");
+                let url = format!("{PHIRA_API_BASE}/api/topchart/hot_rank/{range}");
+                http_get(&url).unwrap_or(json!({"charts": []}))
+            }
+            "/user_rank/:timeRange" => {
+                let range = _serde_args.get(0).and_then(|v| v.as_str()).unwrap_or("all");
+                let url = format!("{PHIRA_API_BASE}/api/user_rank/{range}");
+                http_get(&url).unwrap_or(json!({"users": []}))
+            }
+            "/rankapi/playtime_leaderboard" => {
+                let url = format!("{PHIRA_API_BASE}/api/rankapi/playtime_leaderboard");
+                http_get(&url).unwrap_or(json!({"leaderboard": []}))
+            }
+
+            // ── Config ──────────────────────────────────────────────
+            "/config/version.json" => json!({
+                "version": "0.1.0",
+                "plugin": "hsnphira-v2-pmp-plugin",
+                "phira_mp_plus": env!("CARGO_PKG_VERSION"),
+            }),
+
+            // ── SSE event translation ──────────────────────────────
+            // Called by the host for each RoomEvent on the SSE stream
+            // registered via sse.register_stream.
+            "sse:translate" => {
+                // args[0] = {"event_type": "RoomCreate", "data": "{...}"}
+                let obj = _serde_args.get(0)
+                    .and_then(|v| v.as_object()).cloned().unwrap_or_default();
+                let raw_type = obj.get("event_type")
+                    .and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let raw_data: Value = obj.get("data")
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| serde_json::from_str(s).ok())
+                    .unwrap_or(json!({}));
+
+                // Map host event types → HSNPhira v2 SSE format.
+                // The SseHub publishes RoomEvent types; each carries
+                // different payload fields.
+                let (hsn_type, hsn_data): (&str, Value) = match raw_type.as_str() {
+                    "RoomCreate" => ("create_room", json!({
+                        "room": raw_data.get("room_id"),
+                        "room_uuid": raw_data.get("room_uuid"),
+                    })),
+                    "RoomJoin" | "RoomEnter" => ("join_room", json!({
+                        "room": raw_data.get("room_id"),
+                        "user": raw_data.get("user_id"),
+                    })),
+                    "RoomLeave" => ("leave_room", json!({
+                        "room": raw_data.get("room_id"),
+                        "user": raw_data.get("user_id"),
+                    })),
+                    "RoomModify" => ("update_room", json!({
+                        "room": raw_data.get("room_id"),
+                        "data": raw_data,
+                    })),
+                    "GameEnd" => ("player_score", json!({
+                        "room": raw_data.get("room_id"),
+                        "record": raw_data.get("game_result"),
+                    })),
+                    "RoundComplete" => ("start_round", json!({
+                        "room": raw_data.get("room_id"),
+                        "chart_id": raw_data.get("chart_id"),
+                    })),
+                    _ => json!(null), // skip unknown → host skips sending
+                };
+                let mut payload = json!({"type": hsn_type});
+                if let Some(obj) = hsn_data.as_object() {
+                    payload.as_object_mut().unwrap().extend(obj.clone());
+                }
+                payload
+            }
+
             _ => json!({"error": format!("unknown route: {method}")}),
         };
         ApiResult::Ok(json_value_to_wit(&result))
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// JSON conversion helpers (same pattern as the SDK example)
+// ═══════════════════════════════════════════════════════════════════
 
 fn json_value_to_wit(value: &Value) -> JsonValue {
     match value {
