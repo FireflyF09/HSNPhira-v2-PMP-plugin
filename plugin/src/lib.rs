@@ -33,20 +33,6 @@ fn register_route(path: &str) {
 
 impl Guest for HSNPhiraPlugin {
     fn init() -> Result<(), String> {
-        for path in &[
-            "/newapi/rooms/info",
-            "/newapi/rooms/history",
-            "/newapi/rooms/listen",
-            "/api/rooms/info/:name",
-            "/chart/:id/rank",
-            "/topchart/chart_rank/:chart_id",
-            "/topchart/hot_rank/:timeRange",
-            "/user_rank/:timeRange",
-            "/rankapi/playtime_leaderboard",
-            "/config/version.json",
-        ] {
-            register_route(path);
-        }
         Ok(())
     }
 
