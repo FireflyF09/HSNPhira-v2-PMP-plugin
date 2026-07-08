@@ -86,7 +86,7 @@ impl Guest for HSNPhiraPlugin {
     }
 
     fn on_api(method: String, args: Vec<JsonValue>) -> ApiResult {
-        let __serde_args: Vec<Value> = args.iter().map(wit_json_to_serde).collect();
+        let _serde_args: Vec<Value> = args.iter().map(wit_json_to_serde).collect();
         let result = match method.as_str() {
             // ── Room endpoints ──────────────────────────────────────
             "/newapi/rooms/info" => {
