@@ -32,16 +32,15 @@ fn register_route(path: &str) {
 impl Guest for HSNPhiraPlugin {
     fn init() -> Result<(), String> {
         for path in &[
-            "/newapi/rooms/info",
-            "/newapi/rooms/history/:room_id",
+            "/api/rooms/info",
+            "/api/rooms/history/:room_id",
             "/api/rooms/info/:name",
-            "/config/version.json",
         ] {
             register_route(path);
         }
-        // Register SSE stream for /newapi/rooms/listen.
+        // Register SSE stream for /api/rooms/listen.
         let _ = host_api("sse.register_stream", &[json!({
-            "path": "/newapi/rooms/listen",
+            "path": "/api/rooms/listen",
             "plugin": "hsnphira-v2-pmp-plugin",
             "event_types": ["RoomCreate", "RoomJoin", "RoomLeave",
                 "RoomModify", "GameEnd", "RoundComplete"],
@@ -67,19 +66,17 @@ impl Guest for HSNPhiraPlugin {
     fn on_api(method: String, args: Vec<JsonValue>) -> ApiResult {
         let _serde_args: Vec<Value> = args.iter().map(wit_json_to_serde).collect();
         let result = match method.as_str() {
-            "/newapi/rooms/info" => {
+            // ── Room endpoints ──────────────────────────────────────
+            "/api/rooms/info" => {
                 match host_api("rooms.list", &[]) {
                     Ok(rooms) => {
-                        let rooms_arr = rooms.as_array().cloned().unwrap_or_default();
-                        let player_count: usize = rooms_arr.iter()
-                            .filter_map(|r| r.get("player_count").and_then(|v| v.as_u64()))
-                            .sum::<u64>() as usize;
-                        json!({"rooms": rooms_arr, "player_count": player_count})
+                        // backend-remake format: plain array [{name, data}, …]
+                        rooms
                     }
-                    Err(e) => json!({"error": e, "rooms": [], "player_count": 0}),
+                    Err(e) => json!({"error": e}),
                 }
             }
-            "/newapi/rooms/history/:room_id" => {
+            "/api/rooms/history/:room_id" => {
                 let room_id = _serde_args.get(0).and_then(|v| v.as_str()).unwrap_or("");
                 if room_id.is_empty() {
                     json!({"error": "missing room_id"})
@@ -101,11 +98,10 @@ impl Guest for HSNPhiraPlugin {
                     }
                 }
             }
-            "/config/version.json" => json!({
-                "version": "0.1.0",
-                "plugin": "hsnphira-v2-pmp-plugin",
-                "phira_mp_plus": env!("CARGO_PKG_VERSION"),
-            }),
+
+            // ── SSE event translation ──────────────────────────────
+            // Called by the host for each RoomEvent on the SSE stream
+            // registered via sse.register_stream.
             "sse:translate" => {
                 let obj = _serde_args.get(0)
                     .and_then(|v| v.as_object()).cloned().unwrap_or_default();
@@ -117,22 +113,28 @@ impl Guest for HSNPhiraPlugin {
                     .unwrap_or(json!({}));
                 let (hsn_type, hsn_data): (&str, Value) = match raw_type.as_str() {
                     "RoomCreate" => ("create_room", json!({
-                        "room": raw_data.get("room_id"), "room_uuid": raw_data.get("room_uuid"),
+                        "room": raw_data.get("room_id"),
+                        "data": raw_data,
                     })),
                     "RoomJoin" | "RoomEnter" => ("join_room", json!({
-                        "room": raw_data.get("room_id"), "user": raw_data.get("user_id"),
+                        "room": raw_data.get("room_id"),
+                        "user": raw_data.get("user_id"),
                     })),
                     "RoomLeave" => ("leave_room", json!({
-                        "room": raw_data.get("room_id"), "user": raw_data.get("user_id"),
+                        "room": raw_data.get("room_id"),
+                        "user": raw_data.get("user_id"),
                     })),
                     "RoomModify" => ("update_room", json!({
-                        "room": raw_data.get("room_id"), "data": raw_data,
+                        "room": raw_data.get("room_id"),
+                        "data": raw_data,
                     })),
                     "GameEnd" => ("player_score", json!({
-                        "room": raw_data.get("room_id"), "record": raw_data.get("game_result"),
+                        "room": raw_data.get("room_id"),
+                        "record": raw_data.get("game_result"),
                     })),
                     "RoundComplete" => ("start_round", json!({
-                        "room": raw_data.get("room_id"), "chart_id": raw_data.get("chart_id"),
+                        "room": raw_data.get("room_id"),
+                        "chart_id": raw_data.get("chart_id"),
                     })),
                     _ => ("", json!(null)),
                 };
@@ -142,6 +144,7 @@ impl Guest for HSNPhiraPlugin {
                 }
                 payload
             }
+
             _ => json!({"error": format!("unknown route: {method}")}),
         };
         ApiResult::Ok(json_value_to_wit(&result))
