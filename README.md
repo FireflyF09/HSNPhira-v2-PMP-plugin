@@ -10,7 +10,29 @@ HSNPhira v2 前端所需的 Web API 端点，以 WASM 插件形式运行在 Phir
 - **谱面排行 API** — 谱面排行、热门排行
 - **用户排行 API** — 用户排行、在线时长排行
 
-## 环境准备
+## 快速部署（下载发行版 .wasm）
+
+无需本地编译，直接从 GitHub Releases 下载预构建的 WASM 插件文件：
+
+```bash
+# 1. 创建插件目录
+mkdir -p /path/to/phira-mp-plus/plugins/hsnphira-v2
+
+# 2. 下载最新 Release 的 .wasm
+wget -O /path/to/phira-mp-plus/plugins/hsnphira-v2/plugin.wasm \
+  https://github.com/FireflyF09/HSNPhira-v2-PMP-plugin/releases/latest/download/hsnphira_v2_pmp_plugin.wasm
+
+# 3. 重启服务器
+systemctl restart phira-mp-plus
+
+# 4. 验证
+plugin list                    # 检查 hsnphira-v2-pmp-plugin 已加载
+curl http://localhost:12347/api/rooms/info
+```
+
+> 发行版 .wasm 文件来自 GitHub Releases → 选择最新版本 → Assets 下载。
+
+## 从源码构建
 
 ### 安装 Rust
 
@@ -90,65 +112,38 @@ ls -lh target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.component.wa
 cargo clean
 ```
 
-## 使用 GitHub Actions（无需本地环境）
-
-每次推送到 `main` 后自动构建：
-
-1. 打开 https://github.com/FireflyF09/HSNPhira-v2-PMP-plugin/actions
-2. 选择最新的 workflow run
-3. 在 Artifacts 下载 `.wasm`
-
-手动触发：Actions → Build WASM Plugin → Run workflow
-
 ## 部署
 
-### 1. 创建插件目录
+### 1. 从 Release 下载（推荐）
 
 ```bash
-mkdir -p /path/to/phira-mp-plus/plugins/hsnphira-v2
+wget -O /path/to/phira-mp-plus/plugins/hsnphira-v2/plugin.wasm \
+  https://github.com/FireflyF09/HSNPhira-v2-PMP-plugin/releases/latest/download/hsnphira_v2_pmp_plugin.wasm
 ```
 
-### 2. 复制 WASM
+### 2. 或从本地构建复制
 
 ```bash
-# 本地构建
-cp target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.wasm \
-   /path/to/phira-mp-plus/plugins/hsnphira-v2/plugin.wasm
-
-# 或从 Actions 下载
-cp ~/Downloads/hsnphira-v2-pmp-plugin.wasm \
+cp target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.component.wasm \
    /path/to/phira-mp-plus/plugins/hsnphira-v2/plugin.wasm
 ```
 
 ### 3. 验证
 
 ```bash
-# CLI 验证
-plugin list             # 检查 hsnphira-v2-pmp-plugin 已加载
-plugin info hsnphira-v2-pmp-plugin  # 查看详情
-
-# HTTP 验证
-curl http://localhost:12347/newapi/rooms/info
-curl http://localhost:12347/rankapi/playtime_leaderboard
-curl http://localhost:12347/topchart/hot_rank/all
-
-# 日志
-journalctl -u phira-mp-plus -f | grep plugin
+plugin list                                   # 检查已加载
+plugin info hsnphira-v2-pmp-plugin            # 查看详情
+curl http://localhost:12347/api/rooms/info    # HTTP 验证
 ```
 
 ## API 端点
 
 | 路由 | 方法 | 用途 |
 |------|------|------|
-| `/newapi/rooms/info` | GET | 房间列表 |
-| `/newapi/rooms/history?room_id=X` | GET | 房间游玩历史 |
-| `/newapi/rooms/listen` | SSE/WS | 房间事件 |
+| `/api/rooms/info` | GET | 房间列表 |
+| `/api/rooms/history/:room_id` | GET | 房间游玩历史 |
+| `/api/rooms/listen` | SSE | 房间事件流 |
 | `/api/rooms/info/:name` | GET | 单房间详情 |
-| `/chart/:id/rank` | GET | 谱面排行信息 |
-| `/topchart/chart_rank/:chart_id` | GET | 谱面排名详情 |
-| `/topchart/hot_rank/:timeRange` | GET | 热门谱面排行 |
-| `/user_rank/:timeRange` | GET | 用户排行 |
-| `/rankapi/playtime_leaderboard` | GET | 在线时长排行 |
 
 ## 常见问题
 
