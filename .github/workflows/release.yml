@@ -92,8 +92,9 @@ jobs:
           echo "构建完成: $(ls -lh target/wasm32-unknown-unknown/release/hsnphira_v2_pmp_plugin.component.wasm | awk '{print $5}')"
 
       - name: 创建 Release
-        uses: softprops/action-gh-release@v6
+        uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ steps.version.outputs.tag }}
           name: v${{ steps.version.outputs.version }}
           body: |
