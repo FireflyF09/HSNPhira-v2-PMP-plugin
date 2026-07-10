@@ -66,13 +66,7 @@ impl Guest for HSNPhiraPlugin {
         let _serde_args: Vec<Value> = args.iter().map(wit_json_to_serde).collect();
         let result = match method.as_str() {
             "/api/auth/visited/count" => {
-                match host_api("user_name", &[]) {
-                    Ok(data) => {
-                        let count = data.as_array().map(|a| a.len()).unwrap_or(0);
-                        json!(count)
-                    }
-                    Err(_) => json!(0),
-                }
+                host_api("auth.visited_count", &[]).unwrap_or(json!(0))
             }
 
             "/api/rooms/info" => {
