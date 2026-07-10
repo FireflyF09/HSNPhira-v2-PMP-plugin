@@ -6,9 +6,10 @@ HSNPhira v2 前端所需的 Web API 端点，以 WASM 插件形式运行在 Phir
 
 提供 HSNPhira v2 前端所需的 REST API 端点：
 
-- **房间 API** — 房间列表、历史、详情
-- **谱面排行 API** — 谱面排行、热门排行
-- **用户排行 API** — 用户排行、在线时长排行
+- **访客统计** — 访问过的用户数量
+- **房间 API** — 房间列表、详情
+- **游玩时间排行** — 在线时长排行
+- **房间事件流** — SSE 实时房间事件
 
 ## 快速部署（下载发行版 .wasm）
 
@@ -140,10 +141,11 @@ curl http://localhost:12347/api/rooms/info    # HTTP 验证
 
 | 路由 | 方法 | 用途 |
 |------|------|------|
+| `/api/auth/visited/count` | GET | 访问过的用户数量 |
 | `/api/rooms/info` | GET | 房间列表 |
-| `/api/rooms/history/:room_id` | GET | 房间游玩历史 |
-| `/api/rooms/listen` | SSE | 房间事件流 |
 | `/api/rooms/info/:name` | GET | 单房间详情 |
+| `/newapi/rooms/listen` | SSE | 房间事件流 |
+| `/rankapi/playtime_leaderboard` | GET | 游玩时间排行榜 |
 
 ## 常见问题
 
