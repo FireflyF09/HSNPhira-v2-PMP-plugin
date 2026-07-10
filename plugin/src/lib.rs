@@ -3,8 +3,6 @@
 //! WIT/component-model plugin. Registers HTTP routes via host API and handles
 //! requests via the `on_api` export.
 //!
-//! Room/player data is fetched from the host via `phira_host::api_call`.
-//!
 //! Build: cargo build --target wasm32-unknown-unknown --release
 //! Then:  wasm-tools component new <file>.wasm -o <file>.component.wasm
 
@@ -32,15 +30,16 @@ fn register_route(path: &str) {
 impl Guest for HSNPhiraPlugin {
     fn init() -> Result<(), String> {
         for path in &[
+            "/api/auth/visited/count",
             "/api/rooms/info",
-            "/api/rooms/history/:room_id",
             "/api/rooms/info/:name",
+            "/rankapi/playtime_leaderboard",
         ] {
             register_route(path);
         }
-        // Register SSE stream for /api/rooms/listen.
+        // Register SSE stream for /newapi/rooms/listen.
         let _ = host_api("sse.register_stream", &[json!({
-            "path": "/api/rooms/listen",
+            "path": "/newapi/rooms/listen",
             "plugin": "hsnphira-v2-pmp-plugin",
             "event_types": ["RoomCreate", "RoomJoin", "RoomLeave",
                 "RoomModify", "GameEnd", "RoundComplete"],
@@ -66,27 +65,23 @@ impl Guest for HSNPhiraPlugin {
     fn on_api(method: String, args: Vec<JsonValue>) -> ApiResult {
         let _serde_args: Vec<Value> = args.iter().map(wit_json_to_serde).collect();
         let result = match method.as_str() {
-            // ── Room endpoints ──────────────────────────────────────
+            "/api/auth/visited/count" => {
+                match host_api("user_name", &[]) {
+                    Ok(data) => {
+                        let count = data.as_array().map(|a| a.len()).unwrap_or(0);
+                        json!(count)
+                    }
+                    Err(_) => json!(0),
+                }
+            }
+
             "/api/rooms/info" => {
                 match host_api("rooms.list", &[]) {
-                    Ok(rooms) => {
-                        // backend-remake format: plain array [{name, data}, …]
-                        rooms
-                    }
+                    Ok(rooms) => rooms,
                     Err(e) => json!({"error": e}),
                 }
             }
-            "/api/rooms/history/:room_id" => {
-                let room_id = _serde_args.get(0).and_then(|v| v.as_str()).unwrap_or("");
-                if room_id.is_empty() {
-                    json!({"error": "missing room_id"})
-                } else {
-                    match host_api("room.history", &[json!(room_id)]) {
-                        Ok(data) => data,
-                        Err(e) => json!({"error": e, "rounds": []}),
-                    }
-                }
-            }
+
             "/api/rooms/info/:name" => {
                 let name = _serde_args.get(0).and_then(|v| v.as_str()).unwrap_or("");
                 if name.is_empty() {
@@ -99,9 +94,19 @@ impl Guest for HSNPhiraPlugin {
                 }
             }
 
+            "/rankapi/playtime_leaderboard" => {
+                match host_api("playtime.leaderboard", &[]) {
+                    Ok(data) => data,
+                    Err(_) => json!({
+                        "success": false,
+                        "data": [],
+                        "timestamp": "1970-01-01T00:00:00Z",
+                        "total_users": 0,
+                    }),
+                }
+            }
+
             // ── SSE event translation ──────────────────────────────
-            // Called by the host for each RoomEvent on the SSE stream
-            // registered via sse.register_stream.
             "sse:translate" => {
                 let obj = _serde_args.get(0)
                     .and_then(|v| v.as_object()).cloned().unwrap_or_default();
@@ -134,7 +139,6 @@ impl Guest for HSNPhiraPlugin {
                     })),
                     "RoundComplete" => ("start_round", json!({
                         "room": raw_data.get("room_id"),
-                        "chart_id": raw_data.get("chart_id"),
                     })),
                     _ => ("", json!(null)),
                 };
