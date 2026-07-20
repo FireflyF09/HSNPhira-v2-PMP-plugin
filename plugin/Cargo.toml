@@ -8,11 +8,11 @@ description = "HSNPhira v2 Frontend Web API plugin for Phira-mp+"
 crate-type = ["cdylib"]
 
 [dependencies]
-phira-plugin-sdk = { path = "../../Phira-mp-plus/phira-plugin-sdk" }
+phira-plugin-sdk = { git = "https://github.com/HyperSynapseNetwork/Phira-mp-plus.git" }
 serde_json = "1.0"
 
 # WIT bindgen for guest (WASM component model)
-wit-bindgen = { version = "0.58", optional = true }
+wit-bindgen = { version = "0.57", optional = true }
 
 [features]
 default = ["wit-bindgen"]
